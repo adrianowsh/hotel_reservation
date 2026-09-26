@@ -1,9 +1,11 @@
 package api
 
 import (
-	"context"
+	"errors"
 
 	"github.com/adrianowsh/hotel-reservation/db"
+	"github.com/adrianowsh/hotel-reservation/types"
+	"go.mongodb.org/mongo-driver/mongo"
 
 	"github.com/gofiber/fiber/v3"
 )
@@ -19,48 +21,89 @@ func NewUserHandler(userStore db.UserStore) *UserHandler {
 }
 
 func (h *UserHandler) HandleGetUserByID(c fiber.Ctx) error {
-	var (
-		id  string
-		ctx context.Context
-	)
+	id := c.Params("id")
+	user, err := h.userStore.GetUserByID(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return c.Status(fiber.StatusNotFound).JSON(types.ErrorResponse{Errors: map[string]string{"user": "not found"}})
+		}
+		return err
+	}
+	return c.JSON(types.UserResponse{Data: user})
+}
 
-	id = c.Params("id")
-	ctx = context.Background()
+func (h *UserHandler) HandleGetUserByEmail(c fiber.Ctx) error {
+	email := c.Params("email")
+	user, err := h.userStore.GetUserByEmail(c.Context(), email)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return c.Status(fiber.StatusNotFound).JSON(types.ErrorResponse{Errors: map[string]string{"user": "not found"}})
+		}
+		return err
+	}
+	return c.JSON(types.UserResponse{Data: user})
+}
 
-	user, err := h.userStore.GetUserByID(ctx, id)
+func (h *UserHandler) HandleGetUsers(c fiber.Ctx) error {
+	users, err := h.userStore.GetUsers(c.Context())
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(types.UsersResponse{Data: users})
+}
+
+func (h *UserHandler) HandleCreateUser(c fiber.Ctx) error {
+	var params types.CreateUserParam
+	if err := c.Bind().Body(&params); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	if errors := params.Validate(); errors != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(errors)
+	}
+	user, err := types.NewUserFromParam(&params)
 	if err != nil {
 		return err
 	}
-	return c.JSON(user)
+	createdUser, err := h.userStore.CreateUser(c.Context(), user)
+	if err != nil {
+		return err
+	}
+	return c.JSON(types.UserResponse{Data: createdUser})
 }
 
-// func HandleGetUserByEmail(c fiber.Ctx) error {
-// 	email := c.Params("email")
-// 	return c.JSON(map[string]string{"message": "Hello, Get User by Email!", "email": email})
-// }
+func (h *UserHandler) HandleUpdateUser(c fiber.Ctx) error {
+	id := c.Params("id")
+	var params types.CreateUserParam
+	if err := c.Bind().Body(&params); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(err)
+	}
+	if err := params.Validate(); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(err)
+	}
 
-// func HandleGetUsers(c fiber.Ctx) error {
+	_, err := h.userStore.GetUserByID(c.Context(), id)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return c.Status(fiber.StatusNotFound).JSON(types.ErrorResponse{Errors: map[string]string{"user": "not found"}})
+		}
+		return err
+	}
 
-// 	u := types.User{
-// 		ID:        "1",
-// 		Email:     "example@example.com",
-// 		FirstName: "John",
-// 		LastName:  "Doe",
-// 		Age:       30,
-// 	}
-// 	return c.JSON(u)
-// }
+	user, err := types.NewUserFromParam(&params)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(types.ErrorResponse{Errors: map[string]string{"internal": err.Error()}})
+	}
+	updatedUser, err := h.userStore.UpdateUser(c.Context(), id, user)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(types.UserResponse{Data: updatedUser})
+}
 
-// func HandleCreateUser(c fiber.Ctx) error {
-// 	return c.JSON(map[string]string{"message": "Hello, Create User!"})
-// }
-
-// func HandleUpdateUser(c fiber.Ctx) error {
-// 	id := c.Params("id")
-// 	return c.JSON(map[string]string{"message": "Hello, Update User!", "id": id})
-// }
-
-// func HandleDeleteUser(c fiber.Ctx) error {
-// 	id := c.Params("id")
-// 	return c.JSON(map[string]string{"message": "Hello, Delete User!", "id": id})
-// }
+func (h *UserHandler) HandleDeleteUser(c fiber.Ctx) error {
+	id := c.Params("id")
+	if err := h.userStore.DeleteUser(c.Context(), id); err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	return c.JSON(map[string]string{"message": "User deleted successfully", "id": id})
+}

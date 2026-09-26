@@ -38,12 +38,12 @@ func main() {
 	app := fiber.New(config)
 	apiGroup := app.Group("/api/v1")
 
-	//apiGroup.Get("/users", userHandler.HandleGetUsers)
+	apiGroup.Get("/users", userHandler.HandleGetUsers)
 	apiGroup.Get("/user/:id", userHandler.HandleGetUserByID)
-	// apiGroup.Get("/user/email/:email", userHandler.HandleGetUserByEmail)
-	// apiGroup.Post("/user", userHandler.HandleCreateUser)
-	// apiGroup.Put("/user/:id", userHandler.HandleUpdateUser)
-	//apiGroup.Delete("/user/:id", userHandler.HandleDeleteUser)
+	apiGroup.Get("/user/email/:email", userHandler.HandleGetUserByEmail)
+	apiGroup.Post("/user", userHandler.HandleCreateUser)
+	apiGroup.Put("/user/:id", userHandler.HandleUpdateUser)
+	apiGroup.Delete("/user/:id", userHandler.HandleDeleteUser)
 
 	app.Listen(*listenAddr)
 }
