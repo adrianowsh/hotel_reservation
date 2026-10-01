@@ -33,7 +33,7 @@ func main() {
 	}
 
 	// handlers
-	userHandler := api.NewUserHandler(db.NewMongoUserStore(client))
+	userHandler := api.NewUserHandler(db.NewMongoUserStore(client, db.DbName))
 
 	app := fiber.New(config)
 	apiGroup := app.Group("/api/v1")
